@@ -2,6 +2,24 @@
 
 macOS menu bar app that records what you are working on (foreground window, Chrome URL, Claude Code sessions, shell commands, Teams calls, calendar) and turns it into a billable report. Vocabulary lives in `CONTEXT.md`, decisions in `docs/adr/`.
 
+![Day view: Memory, Agent and Timesheet on one clock](docs/screenshots/day.png)
+
+The **Day** view puts three columns on one vertical clock:
+
+- **Memory**: what the tracker saw, one card per app and project; cards that overlap in time sit side by side.
+- **Agent**: when a Claude Code agent was running and on which task, even while another window was in front.
+- **Timesheet**: what gets billed. Tasks come from Claude Code sessions and meetings; *Summarize day* sends the day's raw data to Claude and proposes entries (dashed drafts) to approve.
+
+Above them, a ribbon shows each project's time across the day.
+
+<img src="docs/screenshots/menu-bar.png" alt="Menu bar popover" width="300" align="right">
+
+The **menu bar** shows what is tracked right now, today's time per project, what waits for review, and a pause with a fixed length (15 min to the rest of the day), so a forgotten pause never swallows a day of work.
+
+**Week** and **Invoice** sum the days per project, round them and price billable projects by their hourly rate (Markdown, CSV or a prompt to paste into Claude).
+
+<br clear="right">
+
 ## Build & run
 
 Requires macOS 26 on Apple Silicon and Command Line Tools (no Xcode needed).
