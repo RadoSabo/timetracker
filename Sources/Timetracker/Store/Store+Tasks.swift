@@ -16,7 +16,7 @@ extension Store {
         db.run("UPDATE task SET adjustment=?, adjustment_note=? WHERE id=?", [seconds, note, id]); refresh()
     }
     func moveTask(_ id: Int64, toProject pid: Int64) {
-        db.run("UPDATE task SET project_id=? WHERE id=?", [pid, id])
+        db.run("UPDATE task SET project_id=?, project_edited=1 WHERE id=?", [pid, id])
         db.run("UPDATE activity SET project_id=? WHERE task_id=?", [pid, id])
         db.run("UPDATE manual SET project_id=? WHERE task_id=?", [pid, id])
         refresh()
@@ -72,6 +72,7 @@ extension Store {
             guard let pid = sessionProject(s) else { continue }
             let name = s.summary ?? firstPromptName(s.id)
             let tid = ensureTask(projectId: pid, day: day, name: name, sessionId: s.id)
+            followSessionProject(tid, pid)
             db.run("UPDATE task SET name=? WHERE id=? AND name_edited=0", [name, tid])
         }
         // 2. one task per meeting
@@ -89,15 +90,23 @@ extension Store {
         }
     }
 
-    /// A Project named in the Session Summary wins over the cwd's: work on acme started from another repo is acme's.
-    /// Moves the session and its tasks still in the old Project; their activities get re-tasked on the next rebuild.
+    /// The repo a Claude Session runs in decides its Project; a Project named in the Session Summary decides only when
+    /// the cwd has none (scratch and temp directories). Claude Code names a session once, from its first prompt, so the
+    /// name can point at another project. Recomputed on every rebuild and stored on the session.
     private func sessionProject(_ s: ClaudeSession) -> Int64? {
-        guard let m = s.summary.flatMap(projectMatching), m.project.id != s.projectId else { return s.projectId }
-        db.run("UPDATE session SET project_id=? WHERE id=?", [m.project.id, s.id])
-        db.run("UPDATE activity SET task_id=NULL WHERE task_id IN (SELECT id FROM task WHERE session_id=? AND project_id IS ?)", [s.id, s.projectId])
-        db.run("UPDATE task SET project_id=? WHERE session_id=? AND project_id IS ?", [m.project.id, s.id, s.projectId])
-        Log.write("task", "session \(s.id.prefix(8)) '\(s.summary ?? "")' → \(m.project.name) (keyword '\(m.word)' in summary, cwd \(s.cwd))")
-        return m.project.id
+        let pid = (s.cwd.isEmpty ? nil : projectId(forCwd: s.cwd)) ?? s.summary.flatMap(projectMatching)?.project.id ?? s.projectId
+        if pid != s.projectId { db.run("UPDATE session SET project_id=? WHERE id=?", [pid, s.id]) }
+        return pid
+    }
+
+    /// Moves a session's task to the session's Project unless the user moved it or approved it from a draft; its
+    /// activities get re-tasked on the next rebuild.
+    private func followSessionProject(_ tid: Int64, _ pid: Int64) {
+        guard let t = task(tid), t.projectId != pid, !t.projectEdited, t.rangesUntil == nil,
+              db.scalar("SELECT COUNT(*) FROM draft WHERE task_id=? AND status='approved'", [tid]) == 0 else { return }
+        db.run("UPDATE task SET project_id=? WHERE id=?", [pid, tid])
+        db.run("UPDATE activity SET task_id=NULL WHERE task_id=?", [tid])
+        Log.write("task", "task #\(tid) '\(t.name)' → project #\(pid) (session repo)")
     }
 
     /// Session task whose runs overlap the activity, else the nearest one in time.

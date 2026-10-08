@@ -16,17 +16,18 @@ extension Store {
             Interval(start: $0.dbl("start"), end: $0.optDbl("end") ?? min(now(), $0.dbl("start") + Settings.maxRunSeconds))
         }
     }
-    /// Runs (agent working) overlapping the day, with their session, project and the Task the session worked on.
+    /// Runs (agent working) overlapping the day, with the Task the session worked on and that Task's project.
     func agentRuns(day: String) -> [AgentRun] {
         let d = Day.interval(day)
         return db.query("""
             SELECT r.start, r.end, s.id, s.project_id, s.cwd, s.summary,
-                   (SELECT name FROM task t WHERE t.session_id=s.id AND t.day=? ORDER BY t.id DESC LIMIT 1) AS task
+                   (SELECT name FROM task t WHERE t.session_id=s.id AND t.day=? ORDER BY t.id DESC LIMIT 1) AS task,
+                   (SELECT project_id FROM task t WHERE t.session_id=s.id AND t.day=? ORDER BY t.id DESC LIMIT 1) AS task_project
             FROM run r JOIN session s ON s.id=r.session_id WHERE COALESCE(r.end, ?)>? AND r.start<? ORDER BY r.start
-            """, [day, now(), d.start, d.end]).map {
+            """, [day, day, now(), d.start, d.end]).map {
             let start = $0.dbl("start")
             return AgentRun(interval: Interval(start: start, end: $0.optDbl("end") ?? min(now(), start + Settings.maxRunSeconds)),
-                            sessionId: $0.str("id"), projectId: $0.optInt("project_id"),
+                            sessionId: $0.str("id"), projectId: $0.optInt("task_project") ?? $0.optInt("project_id"),
                             label: $0.optStr("task") ?? $0.optStr("summary") ?? ($0.str("cwd") as NSString).lastPathComponent)
         }
     }

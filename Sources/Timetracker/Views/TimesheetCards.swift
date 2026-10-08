@@ -84,7 +84,8 @@ struct TaskCard: View {
     }
 }
 
-/// One stretch of an AI draft: dashed, not billed until approved (approving takes the whole draft).
+/// One stretch of an AI draft or an offered calendar meeting: dashed, not billed until approved (approving takes the
+/// whole draft). The description fills the room below the header rows.
 struct DraftCard: View {
     @EnvironmentObject var store: Store
     var draft: Draft
@@ -97,7 +98,8 @@ struct DraftCard: View {
         let color = project?.color ?? Theme.accent
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(draft.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink).lineLimit(nameLines(height))
+                ((draft.isCalendar ? Text(Image(systemName: "calendar")) + Text(" ") : Text("")) + Text(draft.name))
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink).lineLimit(nameLines(height))
                 Spacer(minLength: 4)
                 (Text(hm(seconds)).font(.figure(12, .regular)).foregroundStyle(Theme.muted)
                  + Text(parts > 1 ? " / \(hm(draft.seconds))" : "").font(.figure(10, .regular)).foregroundStyle(Theme.muted))
@@ -112,11 +114,16 @@ struct DraftCard: View {
                 Button { store.approve(draft) } label: { Image(systemName: "checkmark") }.buttonStyle(.borderedProminent).tint(Theme.ink).controlSize(.mini).layoutPriority(1)
                 Button { store.dismiss(draft) } label: { Image(systemName: "xmark") }.buttonStyle(.bordered).controlSize(.mini).layoutPriority(1)
             }
+            let lines = Int((height - 46) / 14)
+            if lines > 0 && !draft.description.isEmpty {
+                Text(draft.description.replacingOccurrences(of: "\n", with: " ")).font(.system(size: 11)).foregroundStyle(Theme.muted).lineLimit(lines)
+            }
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(color.opacity(0.7), style: StrokeStyle(lineWidth: 1.2, dash: [5, 4])))
-        .help("Draft, not billed until approved. " + (draft.description.isEmpty ? draft.name : draft.description))
+        .help((draft.isCalendar ? "Calendar event: confirm you were in this meeting. " : "Draft, not billed until approved. ")
+              + (draft.description.isEmpty ? draft.name : draft.description))
     }
 }
 

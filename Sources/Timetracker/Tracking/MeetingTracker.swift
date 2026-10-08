@@ -50,9 +50,15 @@ final class MeetingTracker {
     private func currentEvent(at ts: Seconds) -> EKEvent? {
         if Date().timeIntervalSince(eventsFetched) > 300, EKEventStore.authorizationStatus(for: .event) == .fullAccess {
             let cals = eventStore.calendars(for: .event).filter { Settings.workCalendars.contains($0.calendarIdentifier) }
+            let today = Calendar.current.startOfDay(for: Date())
             events = cals.isEmpty ? [] : eventStore.events(matching: eventStore.predicateForEvents(
-                withStart: Date().addingTimeInterval(-3600), end: Date().addingTimeInterval(12 * 3600), calendars: cals)).filter { !$0.isAllDay }
+                withStart: today, end: Date().addingTimeInterval(12 * 3600), calendars: cals))
+                .filter { !$0.isAllDay && $0.attendees?.first(where: \.isCurrentUser)?.participantStatus != .declined }
             eventsFetched = Date()
+            store.offerCalendarMeetings(events.map { e in
+                (e.eventIdentifier ?? e.title ?? "", e.title ?? "Meeting", e.notes ?? "",
+                 Interval(start: e.startDate.timeIntervalSince1970, end: e.endDate.timeIntervalSince1970))
+            })
         }
         let d = Date(timeIntervalSince1970: ts)
         return events.first { $0.startDate <= d && $0.endDate > d }

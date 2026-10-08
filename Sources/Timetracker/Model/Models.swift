@@ -62,6 +62,8 @@ struct TaskItem: Identifiable, Hashable {
     var name: String
     var sessionId: String?
     var nameEdited: Bool
+    /// Moved to another project by the user; the session's repo no longer decides.
+    var projectEdited: Bool
     var adjustment: Seconds
     var adjustmentNote: String
     /// Set when an AI draft was approved: until then the task's time is its approved ranges, after it live tracking.
@@ -77,7 +79,7 @@ struct TaskItem: Identifiable, Hashable {
     var allIntervals: [Interval] { (tracked + manual).union() }
     init(row r: Row) {
         id = r.int("id"); projectId = r.int("project_id"); day = r.str("day"); name = r.str("name")
-        sessionId = r.optStr("session_id"); nameEdited = r.bool("name_edited")
+        sessionId = r.optStr("session_id"); nameEdited = r.bool("name_edited"); projectEdited = r.bool("project_edited")
         adjustment = r.dbl("adjustment"); adjustmentNote = r.str("adjustment_note"); rangesUntil = r.optDbl("ranges_until")
     }
 }
@@ -121,12 +123,15 @@ struct Draft: Identifiable {
     var description: String
     var ranges: [Interval]
     var status: Status
+    /// "calendar:<event>@<start>" for a work-calendar event offered as a Meeting; nil for AI day summary drafts.
+    var source: String?
+    var isCalendar: Bool { source?.hasPrefix("calendar:") == true }
     var seconds: Seconds { ranges.total }
     /// A draft as the day summary proposes it, before it is stored.
     struct Proposal { var projectId: Int64; var taskId: Int64?; var name: String; var description: String; var ranges: [Interval] }
     init(row r: Row) {
         id = r.int("id"); day = r.str("day"); projectId = r.int("project_id"); taskId = r.optInt("task_id")
-        name = r.str("name"); description = r.str("description"); status = Status(rawValue: r.str("status")) ?? .pending
+        name = r.str("name"); description = r.str("description"); status = Status(rawValue: r.str("status")) ?? .pending; source = r.optStr("source")
         let pairs = (try? JSONSerialization.jsonObject(with: Data(r.str("ranges").utf8))) as? [[Double]] ?? []
         ranges = pairs.filter { $0.count == 2 }.map { Interval(start: $0[0], end: $0[1]) }
     }

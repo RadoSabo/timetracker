@@ -29,7 +29,7 @@ struct TimesheetEntry {
     /// earlier summary created are hidden, so the column previews the regenerated timesheet instead of showing both.
     static func build(tasks: [TaskItem], drafts: [Draft], breaks: [Break], fallback: Seconds) -> [TimesheetEntry] {
         let replaced = tasks.filter { t in
-            (!drafts.isEmpty && t.fromDraft) || drafts.contains { $0.taskId == t.id || ($0.taskId == nil && $0.projectId == t.projectId && $0.name == t.name) }
+            (drafts.contains { !$0.isCalendar } && t.fromDraft) || drafts.contains { $0.taskId == t.id || ($0.taskId == nil && $0.projectId == t.projectId && $0.name == t.name) }
         }.map(\.id)
         let t = tasks.filter { !replaced.contains($0.id) }.flatMap { t in
             split(t.allIntervals, kind: .task(t)) ?? [TimesheetEntry(start: fallback + 8 * 3600, end: fallback + 8 * 3600, length: t.totalSeconds, kind: .task(t))]

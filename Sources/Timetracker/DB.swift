@@ -63,6 +63,8 @@ final class DB {
         addColumnIfMissing("session", "transcript TEXT")
         addColumnIfMissing("project", "keywords TEXT NOT NULL DEFAULT ''")
         addColumnIfMissing("task", "ranges_until REAL")
+        addColumnIfMissing("draft", "source TEXT")
+        addColumnIfMissing("task", "project_edited INT NOT NULL DEFAULT 0")
     }
 
     private func addColumnIfMissing(_ table: String, _ column: String) {

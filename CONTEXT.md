@@ -28,7 +28,7 @@ Git vetva v cwd v čase udalosti. Len slabá nápoveda pre Task, lebo vetvy čas
 Príkaz spustený v termináli, s cwd a časom.
 
 **Meeting**:
-Úsek, počas ktorého prebieha hovor v Teams alebo udalosť z pracovného kalendára. Počíta sa ako práca aj bez vstupu používateľa a patrí fakturovateľnému Projectu.
+Úsek, počas ktorého prebieha hovor v Teams alebo udalosť z pracovného kalendára. Počíta sa ako práca aj bez vstupu používateľa a patrí fakturovateľnému Projectu. Udalosť z pracovného kalendára, ktorú tracker nezachytil (osobný meeting, Mac idle alebo uspaný), sa ponúkne ako draft na potvrdenie.
 
 **Idle**:
 Stav bez vstupu z klávesnice a myši dlhší než nastavená hranica, keď zároveň nebeží žiadna Claude Session ani Meeting. Čas v Idle sa nepočíta nikomu.
