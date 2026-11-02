@@ -18,7 +18,7 @@ _Avoid_: inštancia, agent
 Text, ktorý používateľ poslal do Claude Session. Najsilnejšia nápoveda o tom, čo sa v Projecte rieši.
 
 **Session Summary**:
-Jedna veta o tom, čo je jadrom celej Claude Session. Ignoruje úvodné odbočky aj záverečné meta-prompty („urob review", „commitni"). Jedna session má jednu vetu, ktorá sa s pribúdajúcimi Promptami spresňuje. Titulok Claude Code z prvého Promptu sa použije len keď niečo hovorí (aspoň 4 slová, nie otázka ani „Attached screenshot", nemenuje iný Project), inak vetu napíše on-device model zo všetkých správ.
+Jedna veta o tom, čo je jadrom celej Claude Session. Ignoruje úvodné odbočky aj záverečné meta-prompty („urob review", „commitni"). Jedna session má jednu vetu, ktorá sa s pribúdajúcimi Promptami spresňuje. Titulok Claude Code z prvého Promptu sa použije len keď niečo hovorí (aspoň 3 slová, nie otázka ani „Attached screenshot", nemenuje iný Project), inak vetu napíše on-device model zo všetkých správ.
 _Avoid_: názov session, titulok
 
 **Branch**:

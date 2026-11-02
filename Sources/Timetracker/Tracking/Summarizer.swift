@@ -52,7 +52,7 @@ final class Summarizer {
     /// Claude Code titles a session from its first prompt: "hi", "Tutorial 5", "Attached PNG screenshot" or a question
     /// say nothing about the work, so the model labels those sessions from all their messages instead.
     static func isVague(_ title: String) -> Bool {
-        title.split(separator: " ").count < 4 || title.hasSuffix("?")
+        title.split(separator: " ").count < 3 || title.hasSuffix("?")
             || title.range(of: "screenshot|image #|attached|pasted", options: [.regularExpression, .caseInsensitive]) != nil
     }
 

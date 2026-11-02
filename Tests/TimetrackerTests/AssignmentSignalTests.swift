@@ -12,10 +12,10 @@ import Testing
 }
 
 @Test func firstPromptTitlesAreVagueAndRealLabelsAreNot() {
-    for vague in ["hi", "Tutorial 5", "get latest main", "Attached PNG screenshot", "Mas taste skill?", "Branch management"] {
+    for vague in ["hi", "Tutorial 5", "Attached PNG screenshot", "Mas taste skill?", "Branch management"] {
         #expect(Summarizer.isVague(vague), "\(vague)")
     }
-    for label in ["Worker photo upload via Cloudflare", "Contracts list screen with filtering"] {
+    for label in ["Dependabot PRs review", "Open PR rebase", "Worker photo upload via Cloudflare"] {
         #expect(!Summarizer.isVague(label), "\(label)")
     }
 }
