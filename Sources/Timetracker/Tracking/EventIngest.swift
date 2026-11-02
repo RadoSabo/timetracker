@@ -47,6 +47,7 @@ final class EventIngest {
             return
         }
         guard let sid = p["session_id"] as? String else { return }
+        if EventIngest.isToolCall(cwd: cwd) { return }
         if store.session(sid) == nil {
             let pid: Int64? = cwd.isEmpty ? nil : store.projectId(forCwd: cwd)
             db.run("INSERT INTO session(id,cwd,branch,project_id,started,last_event) VALUES(?,?,?,?,?,?)",
@@ -68,6 +69,9 @@ final class EventIngest {
         default: break
         }
     }
+
+    /// Apps like Superset run headless `claude -p` in the system temp folder (naming workspaces); that is not the user's session.
+    static func isToolCall(cwd: String) -> Bool { cwd.hasPrefix("/private/var/folders/") || cwd.hasPrefix("/var/folders/") }
 
     private func closeRun(_ sid: String, at ts: Seconds) {
         db.run("UPDATE run SET end=? WHERE session_id=? AND end IS NULL", [ts, sid])

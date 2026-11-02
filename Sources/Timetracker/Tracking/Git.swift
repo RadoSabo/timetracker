@@ -11,6 +11,13 @@ enum Git {
         }
         return nil
     }
+    /// Like `root`, but a worktree ("gitdir: <main>/.git/worktrees/<name>") resolves to its main repo.
+    static func mainRoot(of path: String) -> String? {
+        guard let root = root(of: path) else { return nil }
+        guard let link = try? String(contentsOfFile: root + "/.git", encoding: .utf8), link.hasPrefix("gitdir: "),
+              let r = link.range(of: "/.git/worktrees/") else { return root }
+        return String(link[link.index(link.startIndex, offsetBy: 8)..<r.lowerBound])
+    }
     static func branch(of root: String) -> String? {
         guard let head = try? String(contentsOfFile: root + "/.git/HEAD", encoding: .utf8) else { return nil }
         let t = head.trimmingCharacters(in: .whitespacesAndNewlines)

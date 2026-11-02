@@ -30,8 +30,9 @@ enum DaySummaryPrompt {
     - The project of the work, not of the window: a session started in one repo but discussing another project's PR,
       repo or keyword belongs to the other project. Use keywords, repo paths, URLs (github.com/<org>/<repo>), prompts.
     - Browsing, chat and docs that clearly serve an entry's topic belong to that entry.
-    - Leave out personal activity (shopping, social media, entertainment, private chats) and anything with no evidence
-      for a project.
+    - Use only the listed projects. Work that fits none of them (or where you are unsure between several) gets
+      project null: the user assigns it by hand. Never invent a project name.
+    - Leave out personal activity (shopping, social media, entertainment, private chats, own freelancer profiles).
 
     TIME
     - Ranges cover when that work actually happened: its windows and the agent runs of its sessions.
@@ -45,25 +46,25 @@ enum DaySummaryPrompt {
     - Two entries never share a task_id.
 
     Answer with ONLY a JSON array, no prose, in this shape:
-    [{"project": "<exact project name>", "task_id": <existing task id or null>, "name": "<3-8 word English task name>",
+    [{"project": "<exact project name>" or null, "task_id": <existing task id or null>, "name": "<3-8 word English task name>",
       "description": "<what was done, with PR/issue numbers>", "ranges": [["HH:MM", "HH:MM"], ...]}]
     """
 
-    /// The JSON array in the answer as drafts; nil when there is none. Unknown projects and entries without valid
-    /// ranges are dropped; two drafts for one task would overwrite each other on approval, so only the longest keeps it.
+    /// The JSON array in the answer as drafts; nil when there is none. A null or unknown project means No Project;
+    /// entries without valid ranges are dropped; two drafts for one task would overwrite each other on approval, so only the longest keeps it.
     static func parse(_ text: String, day: String, projects: [Project]) -> [Draft.Proposal]? {
         guard let start = text.firstIndex(of: "["), let end = text.lastIndex(of: "]"),
               let items = try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8)) as? [[String: Any]] else { return nil }
         let dayStart = Day.interval(day).start
         var drafts = items.compactMap { i -> Draft.Proposal? in
-            guard let pname = i["project"] as? String, let p = projects.first(where: { $0.name.caseInsensitiveCompare(pname) == .orderedSame }),
-                  let name = i["name"] as? String else { return nil }
+            guard let name = i["name"] as? String else { return nil }
+            let pid = (i["project"] as? String).flatMap { n in projects.first { $0.name.caseInsensitiveCompare(n) == .orderedSame }?.id }
             let ranges = (i["ranges"] as? [[String]] ?? []).compactMap { r -> Interval? in
                 guard r.count == 2, let s = minutes(r[0]), let e = minutes(r[1]), e > s else { return nil }
                 return Interval(start: dayStart + s * 60, end: dayStart + e * 60)
             }
             guard !ranges.isEmpty else { return nil }
-            return Draft.Proposal(projectId: p.id, taskId: (i["task_id"] as? NSNumber)?.int64Value, name: name, description: i["description"] as? String ?? "", ranges: ranges)
+            return Draft.Proposal(projectId: pid, taskId: (i["task_id"] as? NSNumber)?.int64Value, name: name, description: i["description"] as? String ?? "", ranges: ranges)
         }
         for i in drafts.indices {
             if let tid = drafts[i].taskId, drafts.indices.contains(where: { $0 != i && drafts[$0].taskId == tid && drafts[$0].ranges.total > drafts[i].ranges.total }) {

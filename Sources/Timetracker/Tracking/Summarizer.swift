@@ -25,13 +25,13 @@ final class Summarizer {
 
     /// Summarizes every session active in the last day; run at launch so older sessions get fixed too.
     func summarizeRecent() {
-        for r in db.query("SELECT id FROM session WHERE last_event>?", [now() - 86400]) { summarize(sessionId: r.str("id"), force: true) }
+        for r in db.query("SELECT id FROM session WHERE last_event>? AND ignored=0", [now() - 86400]) { summarize(sessionId: r.str("id"), force: true) }
     }
 
     func summarize(sessionId: String, force: Bool = false) {
         guard !inFlight.contains(sessionId), let s = store.session(sessionId) else { return }
         let transcript = Transcript.read(path: s.transcriptPath)
-        if let title = transcript?.aiTitle, !store.isBareProjectName(title) {
+        if let title = transcript?.aiTitle, !store.isBareProjectName(title), !Summarizer.isVague(title), !namesOtherProject(title, than: s) {
             save(title, session: s, messages: s.summarizedPrompts, source: "ai-title")
             return
         }
@@ -47,6 +47,19 @@ final class Summarizer {
                 save(label, session: s, messages: messages.count, source: "model over \(transcript == nil ? "hooked prompts" : "transcript")")
             } catch { Log.write("summary", "session \(sessionId.prefix(8)) failed: \(error)") }
         }
+    }
+
+    /// Claude Code titles a session from its first prompt: "hi", "Tutorial 5", "Attached PNG screenshot" or a question
+    /// say nothing about the work, so the model labels those sessions from all their messages instead.
+    static func isVague(_ title: String) -> Bool {
+        title.split(separator: " ").count < 4 || title.hasSuffix("?")
+            || title.range(of: "screenshot|image #|attached|pasted", options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    /// A title naming another Project than the session's folder is stale ("…app for the H2-Workers project" in the tracker repo).
+    private func namesOtherProject(_ title: String, than s: ClaudeSession) -> Bool {
+        guard let pid = s.projectId, let m = store.projectMatching(title) else { return false }
+        return m.project.id != pid
     }
 
     private func save(_ label: String, session s: ClaudeSession, messages: Int, source: String) {

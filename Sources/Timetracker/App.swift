@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         EventIngest.shared.start()
         Summarizer.shared.summarizeRecent()
         DaySummary.shared.startSchedule()
+        Classifier.shared.startSchedule()
         Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { _ in Store.shared.closeStaleRuns() }
         // Launch at login is on by default; re-registered on every launch so a moved .app keeps working.
         if Settings.launchAtLogin { try? SMAppService.mainApp.register() }

@@ -26,9 +26,11 @@ final class DB {
     static let shared = DB(path: dir.appendingPathComponent("timetracker.sqlite").path)
 
     private var db: OpaquePointer?
+    private let path: String
     private let queue = DispatchQueue(label: "timetracker.db")
 
     init(path: String) {
+        self.path = path
         sqlite3_open(path, &db)
         sqlite3_busy_timeout(db, 2000)
         exec("PRAGMA journal_mode=WAL")
@@ -47,17 +49,18 @@ final class DB {
         CREATE INDEX IF NOT EXISTS run_start ON run(start);
         CREATE TABLE IF NOT EXISTS shell(id INTEGER PRIMARY KEY, ts REAL NOT NULL, cwd TEXT NOT NULL, cmd TEXT NOT NULL, project_id INT);
         CREATE TABLE IF NOT EXISTS meeting(id INTEGER PRIMARY KEY, start REAL NOT NULL, end REAL, title TEXT NOT NULL, project_id INT, task_id INT);
-        CREATE TABLE IF NOT EXISTS manual(id INTEGER PRIMARY KEY, start REAL NOT NULL, end REAL NOT NULL, project_id INT NOT NULL, note TEXT NOT NULL DEFAULT '', task_id INT);
-        CREATE TABLE IF NOT EXISTS task(id INTEGER PRIMARY KEY, project_id INT NOT NULL, day TEXT NOT NULL, name TEXT NOT NULL, session_id TEXT, name_edited INT NOT NULL DEFAULT 0, adjustment REAL NOT NULL DEFAULT 0, adjustment_note TEXT NOT NULL DEFAULT '');
+        CREATE TABLE IF NOT EXISTS manual(id INTEGER PRIMARY KEY, start REAL NOT NULL, end REAL NOT NULL, project_id INT, note TEXT NOT NULL DEFAULT '', task_id INT);
+        CREATE TABLE IF NOT EXISTS task(id INTEGER PRIMARY KEY, project_id INT, day TEXT NOT NULL, name TEXT NOT NULL, session_id TEXT, name_edited INT NOT NULL DEFAULT 0, adjustment REAL NOT NULL DEFAULT 0, adjustment_note TEXT NOT NULL DEFAULT '');
         CREATE INDEX IF NOT EXISTS task_day ON task(day);
         CREATE TABLE IF NOT EXISTS rule(id INTEGER PRIMARY KEY, pattern TEXT NOT NULL, project_id INT NOT NULL);
         CREATE TABLE IF NOT EXISTS setting(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS draft(id INTEGER PRIMARY KEY, day TEXT NOT NULL, project_id INT NOT NULL, task_id INT, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', ranges TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending');
+        CREATE TABLE IF NOT EXISTS draft(id INTEGER PRIMARY KEY, day TEXT NOT NULL, project_id INT, task_id INT, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', ranges TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending');
         CREATE INDEX IF NOT EXISTS draft_day ON draft(day);
         CREATE TABLE IF NOT EXISTS pause(project_id INT NOT NULL, start REAL NOT NULL, billable INT NOT NULL DEFAULT 0, PRIMARY KEY(project_id, start));
         CREATE TABLE IF NOT EXISTS day_start(project_id INT NOT NULL, day TEXT NOT NULL, start REAL NOT NULL, PRIMARY KEY(project_id, day));
         CREATE TABLE IF NOT EXISTS task_range(task_id INT NOT NULL, start REAL NOT NULL, end REAL NOT NULL);
         CREATE INDEX IF NOT EXISTS task_range_task ON task_range(task_id);
+        CREATE TABLE IF NOT EXISTS correction(id INTEGER PRIMARY KEY, ts REAL NOT NULL, text TEXT NOT NULL, project_id INT);
         """)
         addColumnIfMissing("activity", "reason TEXT")
         addColumnIfMissing("session", "transcript TEXT")
@@ -65,6 +68,26 @@ final class DB {
         addColumnIfMissing("task", "ranges_until REAL")
         addColumnIfMissing("draft", "source TEXT")
         addColumnIfMissing("task", "project_edited INT NOT NULL DEFAULT 0")
+        addColumnIfMissing("project", "description TEXT NOT NULL DEFAULT ''")
+        addColumnIfMissing("session", "ignored INT NOT NULL DEFAULT 0")
+        addColumnIfMissing("session", "ai_reason TEXT")
+        exec("UPDATE session SET ignored=1 WHERE ignored=0 AND (cwd LIKE '/private/var/folders/%' OR cwd LIKE '/var/folders/%')")
+        for t in ["task", "draft", "manual"] { dropNotNull(t, "project_id") }
+        exec("CREATE INDEX IF NOT EXISTS task_day ON task(day); CREATE INDEX IF NOT EXISTS draft_day ON draft(day)")
+    }
+
+    /// SQLite can't relax NOT NULL in place: the table is rebuilt from its own CREATE statement. A backup comes first.
+    private func dropNotNull(_ table: String, _ column: String) {
+        guard query("PRAGMA table_info(\(table))").contains(where: { $0.str("name") == column && $0.bool("notnull") }),
+              let sql = query("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", [table]).first?.str("sql") else { return }
+        let backup = path + ".bak-before-nullable-project"
+        if !FileManager.default.fileExists(atPath: backup) { exec("VACUUM INTO '\(backup)'") }
+        let rebuilt = sql.replacingOccurrences(of: "\(column) INT NOT NULL", with: "\(column) INT")
+            .replacingOccurrences(of: "CREATE TABLE \(table)(", with: "CREATE TABLE \(table)_new(")
+        if !exec("BEGIN; \(rebuilt); INSERT INTO \(table)_new SELECT * FROM \(table); DROP TABLE \(table); ALTER TABLE \(table)_new RENAME TO \(table); COMMIT;") {
+            exec("ROLLBACK")
+            Log.write("db", "making \(table).\(column) nullable failed, rolled back")
+        }
     }
 
     private func addColumnIfMissing(_ table: String, _ column: String) {

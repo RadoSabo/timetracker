@@ -29,26 +29,23 @@ final class Store: ObservableObject {
         guard let id else { return nil }
         return db.query("SELECT * FROM project WHERE id=?", [id]).first.map(Project.init)
     }
-    /// Project for a working directory: its git root, created on first sight. Temporary and scratch directories
-    /// (Claude Code scratchpads, Claude app scratch workspaces) get none; a keyword in the Session Summary decides.
-    @discardableResult
+    /// Project whose folder holds `cwd`, the deepest one wins (a worktree counts as its main repo; the home folder holds
+    /// everything, so it never counts); nil when none does. Projects are never created here: the user adds them in
+    /// Settings, the AI classification decides the rest.
     func projectId(forCwd cwd: String) -> Int64? {
-        if Self.scratchPrefixes.contains(where: { cwd.hasPrefix($0) }) { return nil }
-        let path = Git.root(of: cwd) ?? cwd
-        if let r = db.query("SELECT id FROM project WHERE path=?", [path]).first { return r.int("id") }
-        return insertProject(name: URL(fileURLWithPath: path).lastPathComponent, path: path)
+        let root = Git.mainRoot(of: cwd) ?? cwd
+        return projects(includeHidden: true)
+            .filter { p in p.path.map { $0 != NSHomeDirectory() && (root == $0 || root.hasPrefix($0 + "/")) } == true }
+            .max { $0.path!.count < $1.path!.count }?.id
     }
-    static let scratchPrefixes = ["/tmp/", "/private/tmp/", "/private/var/folders/", "/var/folders/",
-                                  NSHomeDirectory() + "/Library/Application Support/Claude/"]
-    func createProject(name: String) -> Int64 { insertProject(name: name, path: nil) }
-    private func insertProject(name: String, path: String?) -> Int64 {
-        let color = Int(db.scalar("SELECT COUNT(*) FROM project"))
-        let id = db.run("INSERT INTO project(path,name,color) VALUES(?,?,?)", [path, name, color])
+    func createProject(name: String) -> Int64 {
+        let id = db.run("INSERT INTO project(name,color) VALUES(?,?)", [name, Int(db.scalar("SELECT COUNT(*) FROM project"))])
+        Log.write("project", "created #\(id) '\(name)'")
         refresh(); return id
     }
     func update(_ p: Project) {
-        db.run("UPDATE project SET name=?, billable=?, rate=?, color=?, hidden=?, path=?, keywords=? WHERE id=?",
-               [p.name, p.billable, p.rate, p.colorIndex, p.hidden, p.path, p.keywords, p.id])
+        db.run("UPDATE project SET name=?, billable=?, rate=?, color=?, hidden=?, path=?, keywords=?, description=? WHERE id=?",
+               [p.name, p.billable, p.rate, p.colorIndex, p.hidden, p.path, p.keywords, p.description, p.id])
         refresh()
     }
 }

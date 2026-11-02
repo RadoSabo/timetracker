@@ -22,7 +22,7 @@ struct ManualEntrySheet: View {
                 Text("New task from note").tag(Int64?.none)
                 ForEach(tasks) { t in Text(t.name).tag(Int64?.some(t.id)) }
             }
-            TextField("Note / task name", text: $note)
+            TextField("Note / task name", text: $note).textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }

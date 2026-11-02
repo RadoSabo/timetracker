@@ -128,8 +128,8 @@ struct DayTimeline: View {
 
     @ViewBuilder private func entryCard(_ e: TimesheetEntry, height: CGFloat) -> some View {
         switch e.kind {
-        case .task(let t): TaskCard(task: t, project: projectById[t.projectId], range: Interval(start: e.start, end: e.end), seconds: e.length, parts: e.parts, height: height, projects: projects, selected: $selected)
-        case .draft(let d): DraftCard(draft: d, project: projectById[d.projectId], range: Interval(start: e.start, end: e.end), seconds: e.length, parts: e.parts, height: height)
+        case .task(let t): TaskCard(task: t, project: t.projectId.flatMap { projectById[$0] }, range: Interval(start: e.start, end: e.end), seconds: e.length, parts: e.parts, height: height, projects: projects, selected: $selected)
+        case .draft(let d): DraftCard(draft: d, project: d.projectId.flatMap { projectById[$0] }, range: Interval(start: e.start, end: e.end), seconds: e.length, parts: e.parts, height: height)
         case .pause(let b): BreakCard(brk: b, project: projectById[b.projectId])
         }
     }

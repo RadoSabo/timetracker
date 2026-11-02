@@ -1,7 +1,7 @@
 import Testing
 @testable import Timetracker
 
-@Test func summaryAnswerBecomesDraftsAndOnlyTheLongestKeepsASharedTask() {
+@Test func summaryAnswerBecomesDraftsUnknownProjectIsNoProjectAndOnlyTheLongestKeepsASharedTask() {
     let acme = Project(row: Row(values: ["id": Int64(1), "name": "acme-api", "billable": Int64(1), "rate": 50.0, "color": Int64(0), "hidden": Int64(0), "keywords": ""]))
     let answer = """
     Sure, here it is:
@@ -11,8 +11,9 @@ import Testing
      {"project": "acme-api", "name": "No time", "ranges": []}]
     """
     let drafts = DaySummaryPrompt.parse(answer, day: "2026-10-01", projects: [acme])!
-    #expect(drafts.map(\.name) == ["Review CI", "Short"])
-    #expect(drafts.map(\.taskId) == [9, nil])
+    #expect(drafts.map(\.name) == ["Review CI", "Short", "X"])
+    #expect(drafts.map(\.projectId) == [1, 1, nil])
+    #expect(drafts.map(\.taskId) == [9, nil, nil])
     #expect(drafts[0].ranges.total == 3600 && drafts[1].ranges.count == 1)
     #expect(DaySummaryPrompt.parse("no json here", day: "2026-10-01", projects: [acme]) == nil)
 }

@@ -13,7 +13,7 @@ extension Store {
     /// Project Time of every project with tasks that day.
     func projectTime(day: String, tasks: [TaskItem]? = nil) -> [Int64: [Interval]] {
         let ts = tasks ?? self.tasks(day: day)
-        return Dictionary(uniqueKeysWithValues: Set(ts.map(\.projectId)).map { ($0, projectIntervals($0, day: day, tasks: ts)) })
+        return Dictionary(uniqueKeysWithValues: Set(ts.compactMap(\.projectId)).map { ($0, projectIntervals($0, day: day, tasks: ts)) })
     }
 
     /// Measured intervals of the project with short gaps closed, the first one stretched to Day Start, plus billed Breaks.
@@ -25,7 +25,7 @@ extension Store {
 
     /// One Break per pause, offered to the project worked on right before it (every project idle then has the same gap).
     func breaks(day: String, tasks: [TaskItem]) -> [Break] {
-        let all = Set(tasks.map(\.projectId)).sorted().flatMap { pid in
+        let all = Set(tasks.compactMap(\.projectId)).sorted().flatMap { pid in
             breaks(pid, tasks.filter { $0.projectId == pid }.flatMap(\.allIntervals).filled(maxGap: Settings.fillGapSeconds), others: otherWork(pid, tasks))
         }
         let lastBefore = { (b: Break) in tasks.filter { $0.projectId == b.projectId }.flatMap(\.allIntervals).map(\.end).filter { $0 <= b.interval.start }.max() ?? 0 }

@@ -19,10 +19,9 @@ final class MeetingTracker {
         switch (shouldBeActive, openId) {
         case (true, nil):
             let title = event?.title ?? AX.windowTitles(bundleId: WindowContext.teams).first { !$0.contains("| Microsoft Teams") } ?? "Teams call"
-            // Teams is client-only, so an unmatched meeting defaults to the first billable project.
-            let pid = store.projectMatching(title)?.project.id ?? store.billableProjects().first?.id
+            let pid = store.meetingProject(title: title, notes: event?.notes ?? "")
             openId = db.run("INSERT INTO meeting(start,end,title,project_id) VALUES(?,NULL,?,?)", [ts, title, pid])
-            Log.write("meeting", "start '\(title)' teamsCall=\(inTeamsCall) calendar=\(event?.title ?? "-")")
+            Log.write("meeting", "start '\(title)' teamsCall=\(inTeamsCall) calendar=\(event?.title ?? "-") → \(store.project(pid)?.name ?? "no project")")
             store.refresh()
         case (true, let id?):
             db.run("UPDATE meeting SET end=? WHERE id=?", [ts, id])

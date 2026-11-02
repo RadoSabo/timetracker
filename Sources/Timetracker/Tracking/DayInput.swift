@@ -11,13 +11,19 @@ enum DayInput {
         let name = { (id: Int64?) in id.flatMap { store.project($0)?.name } }
         var s = "Date: \(day)\n\n## Projects\n"
         for p in projects {
-            s += "- \(p.name)\(p.billable ? " (billable)" : " (personal)")\(p.keywords.isEmpty ? "" : " keywords: \(p.keywords)")\(p.path.map { " repo: \($0)" } ?? "")\n"
+            s += "- \(p.name)\(p.billable ? " (billable)" : " (personal)")\(p.description.isEmpty ? "" : " — \(p.description)")\(p.keywords.isEmpty ? "" : " keywords: \(p.keywords)")\(p.path.map { " repo: \($0)" } ?? "")\n"
+        }
+
+        let corrections = store.corrections()
+        if !corrections.isEmpty {
+            s += "\n## Past corrections by the user (newest first; similar work goes to the same project)\n"
+            for c in corrections { s += "- \(c.text) → \(c.project ?? "no project")\n" }
         }
 
         s += "\n## Claude Code sessions (agent runs = when the agent was working, also while the user was in other windows)\n"
         for t in tasks {
             guard let sid = t.sessionId, let session = store.session(sid) else { continue }
-            s += "- session task_id \(t.id) [\(name(t.projectId) ?? "?")] cwd: \(session.cwd)\(session.branch.map { " branch: \($0)" } ?? "")\n"
+            s += "- session task_id \(t.id) [\(name(t.projectId) ?? "no project")] cwd: \(session.cwd)\(session.branch.map { " branch: \($0)" } ?? "")\n"
             s += "  auto label (often wrong): \"\(t.name)\"\n"
             s += "  agent runs: \(ranges(store.runs(session: sid).compactMap { $0.clipped(to: d) }))\n"
             for p in store.prompts(session: sid) where p.ts >= d.start && p.ts < d.end { s += "  > \(time(p.ts)) \(oneLine(p.text, 400))\n" }
@@ -36,7 +42,7 @@ enum DayInput {
             for m in meetings { s += "- \(time(m.dbl("start")))–\(m.optDbl("end").map(time) ?? "now") \(oneLine(m.str("title"), 200))\(name(m.optInt("project_id")).map { " [\($0)]" } ?? "")\n" }
         }
 
-        s += "\n## Foreground windows (every switch; [project] = matched by a keyword or rule)\n"
+        s += "\n## Foreground windows (every switch; [project] = by a rule, keyword, the user or an earlier AI guess)\n"
         for a in merged(store.activities(day: day)) {
             let url = a.url.map { " · \(oneLine($0, 200))" } ?? ""
             s += "- \(time(a.interval.start))–\(time(a.interval.end)) \(a.app) · \(oneLine(a.title, 200))\(url)\(name(a.projectId).map { " [\($0)]" } ?? "")\n"

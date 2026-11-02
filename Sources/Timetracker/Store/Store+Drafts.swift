@@ -27,7 +27,7 @@ extension Store {
         drafts.compactMap(\.taskId).forEach(releaseAIAssignments)
         drafts.forEach { approve($0, release: false) }
         for t in stale where !drafts.contains(where: { $0.taskId == nil && $0.projectId == t.projectId && $0.name == t.name }) {
-            deleteTask(t.id)
+            dropTask(t.id)
             Log.write("draft", "removed stale AI task #\(t.id) '\(t.name)'")
         }
     }
@@ -38,7 +38,7 @@ extension Store {
         if d.isCalendar { return approveMeeting(d) }
         let tid = d.taskId.flatMap { task($0)?.id } ?? ensureTask(projectId: d.projectId, day: d.day, name: d.name, sessionId: nil)
         if release { releaseAIAssignments(tid) }
-        if task(tid)?.projectId != d.projectId { db.run("UPDATE task SET project_id=? WHERE id=?", [d.projectId, tid]) }
+        if let pid = d.projectId, task(tid)?.projectId != pid { db.run("UPDATE task SET project_id=? WHERE id=?", [pid, tid]) }
         // Approved ranges are the task's time up to now, so overlapping drafts keep their own time; later work is tracked live.
         db.run("DELETE FROM task_range WHERE task_id=?", [tid])
         for r in d.ranges.union() { db.run("INSERT INTO task_range(task_id,start,end) VALUES(?,?,?)", [tid, r.start, r.end]) }
@@ -48,7 +48,7 @@ extension Store {
         for r in d.ranges {
             // User-set activities are never overridden by AI.
             let ids = db.query("SELECT id FROM activity WHERE user_set=0 AND start<? AND end>?", [r.end, r.start]).map { $0.int("id") }
-            for id in ids { db.run("UPDATE activity SET project_id=?, task_id=?, reason=? WHERE id=?", [d.projectId, tid, "ai draft #\(d.id)", id]) }
+            for id in ids { db.run("UPDATE activity SET project_id=COALESCE(?, project_id), task_id=?, reason=? WHERE id=?", [d.projectId, tid, "ai draft #\(d.id)", id]) }
             assigned += ids.count
         }
         db.run("UPDATE draft SET status='approved', task_id=? WHERE id=?", [tid, d.id])
@@ -69,12 +69,12 @@ extension Store {
             let source = "calendar:\(e.id)@\(Int(e.interval.start))"
             let recorded = db.query("SELECT start, COALESCE(end, ?) AS end FROM meeting WHERE start<? AND COALESCE(end, ?)>?", [now(), e.interval.end, now(), e.interval.start])
                 .compactMap { Interval(start: $0.dbl("start"), end: $0.dbl("end")).clipped(to: e.interval) }.total
-            guard db.query("SELECT id FROM draft WHERE source=?", [source]).isEmpty, recorded < 0.8 * e.interval.duration,
-                  let pid = projectMatching(e.title + " " + e.notes)?.project.id ?? billableProjects().first?.id else { continue }
+            guard db.query("SELECT id FROM draft WHERE source=?", [source]).isEmpty, recorded < 0.8 * e.interval.duration else { continue }
+            let pid = meetingProject(title: e.title, notes: e.notes)
             let json = String(data: try! JSONSerialization.data(withJSONObject: [[e.interval.start, e.interval.end]]), encoding: .utf8)!
             db.run("INSERT INTO draft(day,project_id,name,description,ranges,source) VALUES(?,?,?,?,?,?)",
                    [Day.key(e.interval.start), pid, e.title, e.notes, json, source])
-            Log.write("meeting", "offered calendar event '\(e.title)' \(clock(e.interval.start))–\(clock(e.interval.end)) → \(project(pid)?.name ?? "?")")
+            Log.write("meeting", "offered calendar event '\(e.title)' \(clock(e.interval.start))–\(clock(e.interval.end)) → \(project(pid)?.name ?? "no project")")
             added += 1
         }
         if added > 0 { refresh() }

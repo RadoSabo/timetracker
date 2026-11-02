@@ -86,7 +86,7 @@ struct DayRibbon: View {
         ForEach(drafts) { d in
             ForEach(Array(d.ranges.enumerated()), id: \.offset) { _, iv in
                 block(iv, span, width) {
-                    RoundedRectangle(cornerRadius: 3).strokeBorder(projectById[d.projectId]?.color ?? Theme.accent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                    RoundedRectangle(cornerRadius: 3).strokeBorder(d.projectId.flatMap { projectById[$0] }?.color ?? Theme.accent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                 }
                 .help("Draft: \(d.name)\n\(clock(iv.start))–\(clock(iv.end))")
             }

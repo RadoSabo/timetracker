@@ -10,19 +10,24 @@ struct Project: Identifiable, Hashable {
     var hidden: Bool
     /// Comma-separated words that identify the project in window titles, URLs and meeting names ("acme, Jane").
     var keywords: String
+    /// What the project is about, in the user's words; the AI assigns work to projects by it.
+    var description: String
 
     var keywordList: [String] { keywords.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
-    /// Project name or a keyword as a whole word in `text`, case-insensitive; returns what matched.
+    /// Project name or a keyword as a whole word in `text`, case-insensitive, ignoring spaces and punctuation inside it
+    /// ("h2prime-migration" matches "H2 Prime - Migration"); returns what matched.
     func match(in text: String) -> String? {
         ([name] + keywordList).first { word in
-            word.count >= 2 && text.range(of: "(?<![\\p{L}\\p{N}])" + NSRegularExpression.escapedPattern(for: word) + "(?![\\p{L}\\p{N}])",
-                                          options: [.regularExpression, .caseInsensitive]) != nil
+            let chars = word.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map { NSRegularExpression.escapedPattern(for: String($0)) }
+            return chars.count >= 2 && text.range(of: "(?<![\\p{L}\\p{N}])" + chars.joined(separator: "[\\W_]*") + "(?![\\p{L}\\p{N}])",
+                                                   options: [.regularExpression, .caseInsensitive]) != nil
         }
     }
 
     init(row r: Row) {
         id = r.int("id"); path = r.optStr("path"); name = r.str("name"); billable = r.bool("billable")
         rate = r.dbl("rate"); colorIndex = Int(r.int("color")); hidden = r.bool("hidden"); keywords = r.str("keywords")
+        description = r.str("description")
     }
 }
 
@@ -46,18 +51,19 @@ struct Activity: Identifiable, Hashable {
 struct ManualEntry: Identifiable {
     var id: Int64
     var interval: Interval
-    var projectId: Int64
+    var projectId: Int64?
     var note: String
     var taskId: Int64?
     init(row r: Row) {
         id = r.int("id"); interval = Interval(start: r.dbl("start"), end: r.dbl("end"))
-        projectId = r.int("project_id"); note = r.str("note"); taskId = r.optInt("task_id")
+        projectId = r.optInt("project_id"); note = r.str("note"); taskId = r.optInt("task_id")
     }
 }
 
 struct TaskItem: Identifiable, Hashable {
     var id: Int64
-    var projectId: Int64
+    /// nil: No Project, the user has to pick one.
+    var projectId: Int64?
     var day: String
     var name: String
     var sessionId: String?
@@ -78,7 +84,7 @@ struct TaskItem: Identifiable, Hashable {
     var totalSeconds: Seconds { max(0, (tracked + manual).total + adjustment) }
     var allIntervals: [Interval] { (tracked + manual).union() }
     init(row r: Row) {
-        id = r.int("id"); projectId = r.int("project_id"); day = r.str("day"); name = r.str("name")
+        id = r.int("id"); projectId = r.optInt("project_id"); day = r.str("day"); name = r.str("name")
         sessionId = r.optStr("session_id"); nameEdited = r.bool("name_edited"); projectEdited = r.bool("project_edited")
         adjustment = r.dbl("adjustment"); adjustmentNote = r.str("adjustment_note"); rangesUntil = r.optDbl("ranges_until")
     }
@@ -117,7 +123,7 @@ struct Draft: Identifiable {
     enum Status: String { case pending, approved, dismissed }
     var id: Int64
     var day: String
-    var projectId: Int64
+    var projectId: Int64?
     var taskId: Int64?
     var name: String
     var description: String
@@ -128,9 +134,9 @@ struct Draft: Identifiable {
     var isCalendar: Bool { source?.hasPrefix("calendar:") == true }
     var seconds: Seconds { ranges.total }
     /// A draft as the day summary proposes it, before it is stored.
-    struct Proposal { var projectId: Int64; var taskId: Int64?; var name: String; var description: String; var ranges: [Interval] }
+    struct Proposal { var projectId: Int64?; var taskId: Int64?; var name: String; var description: String; var ranges: [Interval] }
     init(row r: Row) {
-        id = r.int("id"); day = r.str("day"); projectId = r.int("project_id"); taskId = r.optInt("task_id")
+        id = r.int("id"); day = r.str("day"); projectId = r.optInt("project_id"); taskId = r.optInt("task_id")
         name = r.str("name"); description = r.str("description"); status = Status(rawValue: r.str("status")) ?? .pending; source = r.optStr("source")
         let pairs = (try? JSONSerialization.jsonObject(with: Data(r.str("ranges").utf8))) as? [[Double]] ?? []
         ranges = pairs.filter { $0.count == 2 }.map { Interval(start: $0[0], end: $0[1]) }

@@ -7,10 +7,12 @@ extension Store {
         return db.query("SELECT * FROM activity WHERE end>? AND start<? ORDER BY start", [d.start, d.end]).map(Activity.init)
     }
     func setActivityProject(_ id: Int64, projectId: Int64?) {
+        recordCorrection(activity: id, projectId: projectId)
         db.run("UPDATE activity SET project_id=?, task_id=NULL, user_set=1 WHERE id=?", [projectId, id]); refresh()
     }
     func setActivityTask(_ id: Int64, taskId: Int64?) {
         let pid = taskId.flatMap { task($0)?.projectId }
+        if let pid { recordCorrection(activity: id, projectId: pid) }
         db.run("UPDATE activity SET task_id=?, project_id=COALESCE(?,project_id), user_set=1 WHERE id=?", [taskId, pid, id]); refresh()
     }
     func deleteActivity(_ id: Int64) { db.run("DELETE FROM activity WHERE id=?", [id]); refresh() }

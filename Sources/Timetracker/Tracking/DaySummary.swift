@@ -61,13 +61,16 @@ final class DaySummary: ObservableObject {
         Log.write("day-summary", "\(day) failed: \(message)")
     }
 
-    /// Runs `claude -p` through a login shell (for PATH) with the prompt on stdin.
-    private static func runClaude(prompt: String) throws -> String {
+    /// Runs `claude -p` through a login shell with the prompt on stdin. The login shell skips .zshrc, where the user's
+    /// PATH gets ~/.local/bin, so the usual install folders are added explicitly (an app started from the Dock has none).
+    static func runClaude(prompt: String) throws -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
         p.arguments = ["-lc", "claude -p --model \(model)"]
         p.currentDirectoryURL = DB.dir
-        p.environment = ProcessInfo.processInfo.environment.merging(["TIMETRACKER_INTERNAL": "1"]) { $1 }
+        let env = ProcessInfo.processInfo.environment
+        let path = ["\(NSHomeDirectory())/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", env["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
+        p.environment = env.merging(["TIMETRACKER_INTERNAL": "1", "PATH": path]) { $1 }
         let input = Pipe(), output = Pipe(), errors = Pipe()
         p.standardInput = input; p.standardOutput = output; p.standardError = errors
         try p.run()

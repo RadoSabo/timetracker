@@ -65,7 +65,7 @@ struct TaskCard: View {
 
     private var projectLabel: some View {
         HStack(spacing: 6) {
-            Text(project?.name ?? "?").font(.label).foregroundStyle(project?.color ?? Theme.accent).lineLimit(1)
+            Text(project?.name ?? "No project").font(.label).foregroundStyle(project?.color ?? Theme.warn).lineLimit(1)
             if task.manualSeconds != 0 { OriginMark(origin: .manual, seconds: task.manualSeconds, color: project?.color ?? Theme.accent) }
         }
     }
@@ -107,7 +107,7 @@ struct DraftCard: View {
             }
             HStack(spacing: 6) {
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { timeRange(range); Text(project?.name ?? "?").font(.label).foregroundStyle(color).lineLimit(1) }
+                    HStack(spacing: 6) { timeRange(range); Text(project?.name ?? "No project").font(.label).foregroundStyle(project == nil ? Theme.warn : color).lineLimit(1) }
                     timeRange(range)
                 }
                 Spacer(minLength: 0)

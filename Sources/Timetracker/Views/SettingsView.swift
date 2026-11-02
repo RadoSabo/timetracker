@@ -17,12 +17,12 @@ struct SettingsView: View {
         let _ = store.tick
         Form {
             Section("Projects") {
-                ForEach(store.projects(includeHidden: true)) { p in ProjectRow(project: p) }
+                ForEach(store.projects(includeHidden: true)) { p in ProjectRow(stored: p, project: p) }
                 HStack {
-                    TextField("New project (no folder)", text: $newProject)
-                    Button("Add") { _ = store.createProject(name: newProject); newProject = "" }.disabled(newProject.isEmpty)
+                    TextField("", text: $newProject, prompt: Text("New project name")).labelsHidden().textFieldStyle(.roundedBorder)
+                    Button("Add") { _ = store.createProject(name: newProject); store.reclassifyToday(); newProject = "" }.disabled(newProject.isEmpty)
                 }
-                Text("Projects from Claude Code and the shell appear automatically (git root).").font(.caption).foregroundStyle(Theme.muted)
+                Text("Projects are added only here. Every 20 minutes the AI assigns windows and Claude sessions to them by name, description, keywords, folder and your past corrections; windows that fit none stay unassigned, Claude sessions show up as No project.").font(.caption).foregroundStyle(Theme.muted)
             }
             Section("Rules (regex on “app | window title | url” → project)") {
                 ForEach(store.rules()) { r in
@@ -34,13 +34,13 @@ struct SettingsView: View {
                     }
                 }
                 HStack {
-                    TextField("e.g. github\\.com/acme-api|jira", text: $newRule)
+                    TextField("", text: $newRule, prompt: Text("e.g. github\\.com/acme-api|jira")).labelsHidden().textFieldStyle(.roundedBorder)
                     ProjectPicker(label: "", projects: store.projects(), none: "Project", selection: $newRuleProject).frame(width: 180)
                     Button("Add") { if let pid = newRuleProject { store.addRule(pattern: newRule, projectId: pid); newRule = "" } }.disabled(newRule.isEmpty || newRuleProject == nil)
                 }
             }
             Section("Tracking") {
-                HStack { Text("Idle after"); TextField("", value: $idle, format: .number).frame(width: 60); Text("minutes") }
+                HStack { Text("Idle after"); TextField("", value: $idle, format: .number).labelsHidden().textFieldStyle(.roundedBorder).frame(width: 60); Text("minutes") }
                     .onChange(of: idle) { _, v in Settings.idleMinutes = v }
                 Toggle("Include full prompts in “Copy for Claude”", isOn: $fullPrompts).onChange(of: fullPrompts) { _, v in Settings.fullPromptsInExport = v }
                 Toggle("Launch at login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { _, v in
@@ -97,25 +97,5 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-    }
-}
-
-struct ProjectRow: View {
-    @EnvironmentObject var store: Store
-    @Local var project: Project
-    var body: some View {
-        HStack(spacing: 10) {
-            Picker("", selection: $project.colorIndex) {
-                ForEach(0..<Project.palette.count, id: \.self) { i in Circle().fill(Project.palette[i]).frame(width: 12, height: 12).tag(i) }
-            }.frame(width: 50).labelsHidden()
-            TextField("Name", text: $project.name).frame(width: 160)
-            Text(project.path ?? "").font(.caption).foregroundStyle(Theme.muted).lineLimit(1).truncationMode(.head)
-            Spacer()
-            Toggle("Billable", isOn: $project.billable)
-            TextField("€/h", value: $project.rate, format: .number).frame(width: 60).disabled(!project.billable)
-            Toggle("Hidden", isOn: $project.hidden)
-        }
-        TextField("Keywords, comma separated (e.g. acme, Jane)", text: $project.keywords).font(.caption).padding(.leading, 60)
-        .onChange(of: project) { _, p in store.update(p) }
     }
 }

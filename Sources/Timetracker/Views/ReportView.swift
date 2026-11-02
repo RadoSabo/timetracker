@@ -85,6 +85,7 @@ struct ReportView: View {
                         Button("Copy Markdown") { copy(r.markdown, "Copied Markdown") }.frame(maxWidth: .infinity)
                         Button("Save CSV…") { save(r) }.frame(maxWidth: .infinity)
                     }
+                    Button("Save Excel (all projects)…") { saveXlsx(billable) }.frame(maxWidth: .infinity)
                     Text(flash).font(.label).foregroundStyle(Theme.muted).frame(height: 14)
                 }
             }
@@ -115,5 +116,22 @@ struct ReportView: View {
     private func save(_ r: Report) {
         let panel = NSSavePanel(); panel.nameFieldStringValue = "\(r.project.name)-\(Day.key(r.from))-\(Day.key(r.to)).csv"
         if panel.runModal() == .OK, let url = panel.url { try? r.csv.write(to: url, atomically: true, encoding: .utf8); flash = "Saved \(url.lastPathComponent)" }
+    }
+    private func saveXlsx(_ projects: [Project]) {
+        let panel = NSSavePanel(); panel.nameFieldStringValue = "Timesheet-\(Day.key(from))-\(Day.key(to)).xlsx"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let lines = Report.xlsxLines(projects.map { Report.build(project: $0, from: from, to: to) })
+        let input = WorkPerformed.input(lines)
+        let (from, to) = (from, to)
+        flash = "Writing work performed with Claude…"
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try Report.writeXlsx(try WorkPerformed.rewrite(lines, input: input), from: from, to: to, to: url) }
+            DispatchQueue.main.async {
+                switch result {
+                case .success: flash = "Saved \(url.lastPathComponent)"
+                case .failure(let e): flash = "Export failed: \(e.localizedDescription)"
+                }
+            }
+        }
     }
 }
